@@ -1,5 +1,7 @@
 package scala.tools.eclipse.completion
 
+import scala.tools.eclipse.logging.HasLogger
+
 object HasArgs extends Enumeration {
   val NoArgs, EmptyArgs, NonEmptyArgs = Value
 
@@ -25,6 +27,7 @@ object CompletionContext {
   trait ContextType
   case object DefaultContext extends ContextType
   case object ApplyContext extends ContextType
+  case object ApplyNewContext extends ContextType
 }
 
 
@@ -51,10 +54,11 @@ case class CompletionProposal(
   paramTypes: List[List[String]],          // parameter types matching parameter names (excluding implicit parameter sections)
   fullyQualifiedName: String, // for Class, Trait, Type, Objects: the fully qualified name
   needImport: Boolean        // for Class, Trait, Type, Objects: import statement has to be added
-) {
+) extends HasLogger {
 
   /** Return the tooltip displayed once a completion has been activated. */
   def tooltip: String = {
+    logger.info(s"Getting tooltip ${getParamNames()} $paramTypes")
     val contextInfo = for {
       (names, tpes) <- getParamNames().zip(paramTypes)
     } yield for { (name, tpe) <- names.zip(tpes) } yield "%s: %s".format(name, tpe)

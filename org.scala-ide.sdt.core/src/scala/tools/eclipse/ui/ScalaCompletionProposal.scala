@@ -39,6 +39,7 @@ import org.eclipse.jface.text.ITextViewerExtension5
 import org.eclipse.jface.text.DocumentEvent
 import org.eclipse.jface.text.IRegion
 import scala.tools.refactoring.common.TextChange
+import scala.tools.eclipse.logging.HasLogger
 
 /** A UI class for displaying completion proposals.
  *
@@ -49,7 +50,8 @@ class ScalaCompletionProposal(proposal: CompletionProposal, selectionProvider: I
   extends IJavaCompletionProposal
   with ICompletionProposalExtension
   with ICompletionProposalExtension2
-  with ICompletionProposalExtension6 {
+  with ICompletionProposalExtension6
+  with HasLogger {
 
   import proposal._
   import ScalaCompletionProposal._
@@ -107,8 +109,10 @@ class ScalaCompletionProposal(proposal: CompletionProposal, selectionProvider: I
 
   /** The information that is displayed in a small hover window above the completion, showing parameter names and types. */
   def getContextInformation(): IContextInformation =
-    if (tooltip.length > 0)
+    if (tooltip.length > 0) {
+      logger.info(s"Starting tooltip at $startOfArgumentList")
       new ScalaContextInformation(display, tooltip, image, startOfArgumentList)
+    }
     else null
 
   /** A simple display string
@@ -143,7 +147,7 @@ class ScalaCompletionProposal(proposal: CompletionProposal, selectionProvider: I
       var changes: List[TextChange] = Nil
 
       // we don't have to change anything for Apply, since the full method is already specified
-      if (context.contextType != CompletionContext.ApplyContext) {
+      if (!(context.contextType == CompletionContext.ApplyContext || context.contextType == CompletionContext.ApplyNewContext)) {
         scalaSourceFile.withSourceFile { (sourceFile, _) =>
           val endPos = if (overwrite) startPos + existingIdentifier(d, offset).getLength() else offset
           changes :+= TextChange(sourceFile, startPos, endPos, completionFullString)
@@ -173,7 +177,7 @@ class ScalaCompletionProposal(proposal: CompletionProposal, selectionProvider: I
 
     // similar to above, if we're in an apply context, we're not going to show
     // anything in the editor (just doing tooltips)
-    if (context.contextType != CompletionContext.ApplyContext) {
+    if (!(context.contextType == CompletionContext.ApplyContext || context.contextType == CompletionContext.ApplyNewContext)) {
       if (!overwrite) selectionProvider match {
         case viewer: ITextViewer if explicitParamNames.flatten.nonEmpty =>
           addArgumentTemplates(d, viewer, completionFullString)

@@ -32,6 +32,11 @@ class ScalaCompletions extends HasLogger {
     compiler.askTypeAt(pos, typed)
     val t1 = typed.get.left.toOption
 
+    logger.info(s"Completion request at $position")
+
+    import scala.reflect.runtime.universe._
+    logger.info(showRaw(t1.get))
+
     val listedTypes = new mutable.HashMap[String, mutable.Set[CompletionProposal]] with MultiMap[String, CompletionProposal]
 
     def isAlreadyListed(fullyQualifiedName: String, display: String) =
@@ -48,15 +53,23 @@ class ScalaCompletions extends HasLogger {
         }
       }
 
+      def completionFilter(sym: compiler.Symbol, viaView: compiler.Symbol = compiler.NoSymbol, inherited: Boolean = false) = {
+        logger.info(sym.tpe)
+        if (contextType != CompletionContext.ApplyNewContext)
+          !sym.isConstructor && nameMatches(sym)
+        else
+          sym.isConstructor && viaView == compiler.NoSymbol && !inherited
+      }
+
       val context = CompletionContext(contextType)
 
       for (completions <- completed.get.left.toOption) {
         compiler.askOption { () =>
           for (completion <- completions) {
             val completionProposal = completion match {
-              case compiler.TypeMember(sym, tpe, true, inherited, viaView) if !sym.isConstructor && nameMatches(sym) =>
+              case compiler.TypeMember(sym, tpe, true, inherited, viaView) if completionFilter(sym, viaView, inherited) =>
                 Some(compiler.mkCompletionProposal(matchName, start, sym, tpe, inherited, viaView, context))
-              case compiler.ScopeMember(sym, tpe, true, _) if !sym.isConstructor && nameMatches(sym) =>
+              case compiler.ScopeMember(sym, tpe, true, _) if completionFilter(sym) =>
                 Some(compiler.mkCompletionProposal(matchName, start, sym, tpe, false, compiler.NoSymbol, context))
               case _ => None
             }
@@ -156,6 +169,12 @@ class ScalaCompletions extends HasLogger {
         fillTypeCompletions(expr.pos.endOrPoint)
       case Some(compiler.Apply(fun, _)) =>
         fun match {
+          case compiler.Select(qualifier: compiler.New, name) =>
+            logger.info("New !")
+            logger.info(name)
+            logger.info(qualifier)
+            fillTypeCompletions(qualifier.pos.endOrPoint, CompletionContext.ApplyNewContext,
+              name.decoded.toArray, qualifier.pos.start, false)
           case compiler.Select(qualifier, name) if qualifier.pos.isDefined && qualifier.pos.isRange =>
             fillTypeCompletions(qualifier.pos.endOrPoint, CompletionContext.ApplyContext,
               name.decoded.toArray, qualifier.pos.end + 1, false)
